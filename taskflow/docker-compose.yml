@@ -1,0 +1,67 @@
+version: "3.9"
+
+services:
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: taskflow_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB:       ${DB_NAME:-taskflow}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Seed is run after migrations via the API container's init
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-taskflow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── API Server ───────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: taskflow_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT:              ${PORT:-8080}
+      DB_HOST:           postgres
+      DB_PORT:           5432
+      DB_USER:           ${DB_USER:-postgres}
+      DB_PASSWORD:       ${DB_PASSWORD:-postgres}
+      DB_NAME:           ${DB_NAME:-taskflow}
+      DB_SSLMODE:        ${DB_SSLMODE:-disable}
+      JWT_SECRET:        ${JWT_SECRET}
+      JWT_EXPIRY_HOURS:  ${JWT_EXPIRY_HOURS:-24}
+      LOG_LEVEL:         ${LOG_LEVEL:-info}
+      MIGRATIONS_PATH:   /app/migrations
+    ports:
+      - "${PORT:-8080}:8080"
+
+  # ── Seed runner (runs once and exits) ─────────────────────────────────────
+  seed:
+    image: postgres:16-alpine
+    container_name: taskflow_seed
+    depends_on:
+      api:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - ./backend/scripts/seed.sql:/seed.sql:ro
+    command: >
+      sh -c "sleep 5 && psql -h postgres -U ${DB_USER:-postgres} -d ${DB_NAME:-taskflow} -f /seed.sql"
+    restart: "no"
+
+volumes:
+  postgres_data:
