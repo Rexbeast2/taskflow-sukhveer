@@ -1,9 +1,4 @@
 # TaskFlow API
-
-A RESTful task-management backend written in Go. Users create projects, assign tasks, and track progress across teams. Built as a deliberate exercise in layered architecture and security-first thinking — not as a framework showcase, but as a demonstration of how production Go services are actually structured.
-
-**Stack:** Go 1.22 · PostgreSQL 16 · chi · golang-migrate · JWT (HMAC-SHA256) · bcrypt (cost 12) · Docker + Compose · slog (structured JSON logging)
-
 ---
 
 ## Table of Contents
